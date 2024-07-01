@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing_extensions import Annotated
 from pydantic import UUID4, BaseModel, Field
 from datetime import datetime
 

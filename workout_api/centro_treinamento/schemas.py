@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing_extensions import Annotated
 
 from pydantic import Field, UUID4
 from workout_api.contrib.schemas import BaseSchema
