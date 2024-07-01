@@ -2,6 +2,7 @@ from datetime import datetime
 from uuid import uuid4
 from fastapi import APIRouter, Body, HTTPException, status, Query
 from pydantic import UUID4
+from sqlalchemy.exc import IntegrityError
 
 from workout_api.atleta.schemas import AtletaIn, AtletaOut, AtletaUpdate
 from workout_api.atleta.models import AtletaModel
@@ -54,6 +55,17 @@ async def post(
         
         db_session.add(atleta_model)
         await db_session.commit()
+    except IntegrityError as e:
+        if "duplicate key value violates unique constraint" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_303_SEE_OTHER,
+                detail=f'Já existe um atleta cadastrado com o CPF: {atleta_in.cpf}'
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail='Erro de integridade ao inserir os dados no banco'
+            )
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
@@ -80,6 +92,33 @@ async def query(db_session: DatabaseDependency, nome: str = Query(None), cpf: st
     atletas: list[AtletaOut] = (await db_session.execute(query)).scalars().all()
     
     return [AtletaOut.model_validate(atleta) for atleta in atletas]
+
+@router.get(
+    '/formatted',
+    summary='Consultar todos os Atletas com dados formatados',
+    status_code=status.HTTP_200_OK,
+    response_model=list[dict],
+)
+async def get_formatted_atletas(db_session: DatabaseDependency) -> list[dict]:
+    query = select(AtletaModel)
+    atletas = await db_session.execute(query)
+    atletas_dicts = []
+
+    for atleta in atletas.scalars():
+        atleta_dict = {
+            "nome": atleta.nome,
+            "centro_treinamento": {
+                "nome": atleta.centro_treinamento.nome,
+                "id": atleta.centro_treinamento.pk_id  
+            },
+            "categoria": {
+                "nome": atleta.categoria.nome,
+                "id": atleta.categoria.pk_id 
+            }
+        }
+        atletas_dicts.append(atleta_dict)
+
+    return atletas_dicts
 
 @router.get(
     '/{id}', 
